@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { LayoutDashboard, Package, ShoppingCart, LogOut, Menu, Home } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { LayoutDashboard, Package, ShoppingCart, LogOut, Menu, Home, Bell, MessageCircle, Gift } from "lucide-react"
 
 interface AdminLayoutProps {
   children: React.ReactNode
@@ -26,6 +27,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
     { name: "Products", href: "/admin/products", icon: Package },
     { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
+    { name: "Notifications", href: "/admin/notifications", icon: Bell, badge: 3 },
+    { name: "Messages", href: "/admin/messages", icon: MessageCircle, badge: 2 },
+    { name: "Offers", href: "/admin/offers", icon: Gift },
   ]
 
   return (
@@ -46,10 +50,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               <Link
                 key={item.name}
                 href={item.href}
-                className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                className="group flex items-center justify-between px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
               >
-                <item.icon className="mr-3 h-5 w-5" />
-                {item.name}
+                <div className="flex items-center">
+                  <item.icon className="mr-3 h-5 w-5" />
+                  {item.name}
+                </div>
+                {item.badge && <Badge className="bg-red-500 text-white text-xs">{item.badge}</Badge>}
               </Link>
             ))}
           </nav>
@@ -94,10 +101,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                     key={item.name}
                     href={item.href}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    className="group flex items-center justify-between px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                   >
-                    <item.icon className="mr-3 h-5 w-5" />
-                    {item.name}
+                    <div className="flex items-center">
+                      <item.icon className="mr-3 h-5 w-5" />
+                      {item.name}
+                    </div>
+                    {item.badge && <Badge className="bg-red-500 text-white text-xs">{item.badge}</Badge>}
                   </Link>
                 ))}
               </nav>
