@@ -100,7 +100,7 @@ CREATE TRIGGER update_user_addresses_updated_at BEFORE UPDATE ON user_addresses 
 CREATE TRIGGER update_customer_loyalty_updated_at BEFORE UPDATE ON customer_loyalty FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_product_reviews_updated_at BEFORE UPDATE ON product_reviews FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Insert sample users
+-- Insert sample users (password is 'password' hashed with bcrypt)
 INSERT INTO users (name, email, phone, password_hash, address, city) VALUES
 ('Ahmed Ali', 'ahmed@example.com', '03001234567', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'House 123, Street 5, Block A', 'Karachi'),
 ('Fatima Khan', 'fatima@example.com', '03009876543', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Flat 45, Building 2, Gulshan', 'Karachi'),

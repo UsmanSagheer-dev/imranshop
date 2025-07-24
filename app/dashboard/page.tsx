@@ -2,27 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import Header from "@/components/Header"
-import Footer from "@/components/Footer"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  ShoppingBag,
-  Star,
-  Gift,
-  MapPin,
-  Phone,
-  Mail,
-  Calendar,
-  Package,
-  Clock,
-  CheckCircle,
-  Truck,
-  LogOut,
-} from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Package, LogOut, Phone, Mail, MapPin, Calendar, Award } from "lucide-react"
 
 interface DashboardUser {
   id: string
@@ -31,18 +16,16 @@ interface DashboardUser {
   phone?: string
   address?: string
   city?: string
-  date_of_birth?: string
-  created_at: string
+  createdAt: string
 }
 
 interface Order {
   id: string
   order_number: string
-  status: string
   total_amount: number
   final_amount: number
+  status: string
   created_at: string
-  item_count: number
   items: Array<{
     product_name: string
     quantity: number
@@ -66,6 +49,7 @@ export default function DashboardPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loyalty, setLoyalty] = useState<Loyalty | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     fetchUserData()
@@ -73,31 +57,34 @@ export default function DashboardPage() {
 
   const fetchUserData = async () => {
     try {
-      // Fetch current user
+      // Fetch user info
       const userResponse = await fetch("/api/auth/me")
-      if (!userResponse.ok) {
-        router.push("/auth/login?redirect=/dashboard")
+      const userData = await userResponse.json()
+
+      if (!userData.success) {
+        router.push("/auth/login")
         return
       }
-      const userData = await userResponse.json()
+
       setUser(userData.user)
 
-      // Fetch user orders
+      // Fetch orders
       const ordersResponse = await fetch("/api/user/orders")
-      if (ordersResponse.ok) {
-        const ordersData = await ordersResponse.json()
+      const ordersData = await ordersResponse.json()
+
+      if (ordersData.success) {
         setOrders(ordersData.orders)
       }
 
       // Fetch loyalty data
       const loyaltyResponse = await fetch("/api/user/loyalty")
-      if (loyaltyResponse.ok) {
-        const loyaltyData = await loyaltyResponse.json()
+      const loyaltyData = await loyaltyResponse.json()
+
+      if (loyaltyData.success) {
         setLoyalty(loyaltyData.loyalty)
       }
     } catch (error) {
-      console.error("Error fetching user data:", error)
-      router.push("/auth/login?redirect=/dashboard")
+      setError("Failed to load dashboard data")
     } finally {
       setLoading(false)
     }
@@ -107,14 +94,13 @@ export default function DashboardPage() {
     try {
       await fetch("/api/auth/logout", { method: "POST" })
       router.push("/")
-      router.refresh()
     } catch (error) {
       console.error("Logout error:", error)
     }
   }
 
   const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
+    switch (status) {
       case "pending":
         return "bg-yellow-100 text-yellow-800"
       case "confirmed":
@@ -132,357 +118,187 @@ export default function DashboardPage() {
     }
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "pending":
-        return <Clock className="h-4 w-4" />
-      case "confirmed":
-        return <CheckCircle className="h-4 w-4" />
-      case "processing":
-        return <Package className="h-4 w-4" />
-      case "shipped":
-        return <Truck className="h-4 w-4" />
-      case "delivered":
-        return <CheckCircle className="h-4 w-4" />
-      default:
-        return <Clock className="h-4 w-4" />
-    }
-  }
-
   const getMembershipColor = (level: string) => {
-    switch (level.toLowerCase()) {
-      case "platinum":
-        return "bg-gray-800 text-white"
-      case "gold":
-        return "bg-yellow-500 text-white"
-      case "silver":
-        return "bg-gray-400 text-white"
+    switch (level) {
+      case "Bronze":
+        return "bg-amber-100 text-amber-800"
+      case "Silver":
+        return "bg-gray-100 text-gray-800"
+      case "Gold":
+        return "bg-yellow-100 text-yellow-800"
+      case "Platinum":
+        return "bg-purple-100 text-purple-800"
       default:
-        return "bg-orange-600 text-white"
+        return "bg-gray-100 text-gray-800"
     }
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <Header />
-        <main className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-          </div>
-        </main>
-        <Footer />
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     )
   }
 
-  if (!user) {
-    return null
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
+    )
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
-      <main className="container mx-auto px-4 py-8">
-        {/* Welcome Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Welcome back, {user.name}!</h1>
-            <p className="text-gray-600">Manage your account and track your orders</p>
+      {/* Header */}
+      <div className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user?.name}!</h1>
+              <p className="text-gray-600">Manage your account and orders</p>
+            </div>
+            <Button onClick={handleLogout} variant="outline">
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </Button>
           </div>
-          <Button variant="outline" onClick={handleLogout} className="flex items-center space-x-2 bg-transparent">
-            <LogOut className="h-4 w-4" />
-            <span>Logout</span>
-          </Button>
         </div>
+      </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <ShoppingBag className="h-8 w-8 text-green-600" />
-                <div>
-                  <p className="text-2xl font-bold">{loyalty?.total_orders || 0}</p>
-                  <p className="text-sm text-gray-600">Total Orders</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <Gift className="h-8 w-8 text-purple-600" />
-                <div>
-                  <p className="text-2xl font-bold">{loyalty?.points_balance || 0}</p>
-                  <p className="text-sm text-gray-600">Loyalty Points</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <Star className="h-8 w-8 text-yellow-600" />
-                <div>
-                  <Badge className={getMembershipColor(loyalty?.membership_level || "Bronze")}>
-                    {loyalty?.membership_level || "Bronze"}
-                  </Badge>
-                  <p className="text-sm text-gray-600 mt-1">Membership</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <Package className="h-8 w-8 text-blue-600" />
-                <div>
-                  <p className="text-2xl font-bold">Rs. {loyalty?.total_spent?.toLocaleString() || 0}</p>
-                  <p className="text-sm text-gray-600">Total Spent</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content */}
-        <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="orders">Order History</TabsTrigger>
-            <TabsTrigger value="loyalty">Loyalty Program</TabsTrigger>
-          </TabsList>
-
-          {/* Profile Tab */}
-          <TabsContent value="profile">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Profile Section */}
+          <div className="lg:col-span-1">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <ShoppingBag className="h-5 w-5" />
-                  <span>Profile Information</span>
+                <CardTitle className="flex items-center">
+                  <Package className="mr-2 h-5 w-5" />
+                  Profile Information
                 </CardTitle>
-                <CardDescription>Your personal information and contact details</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center space-x-3">
-                    <ShoppingBag className="h-5 w-5 text-gray-400" />
-                    <div>
-                      <p className="font-medium">{user.name}</p>
-                      <p className="text-sm text-gray-600">Full Name</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-3">
-                    <Mail className="h-5 w-5 text-gray-400" />
-                    <div>
-                      <p className="font-medium">{user.email}</p>
-                      <p className="text-sm text-gray-600">Email Address</p>
-                    </div>
-                  </div>
-
-                  {user.phone && (
-                    <div className="flex items-center space-x-3">
-                      <Phone className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium">{user.phone}</p>
-                        <p className="text-sm text-gray-600">Phone Number</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {user.address && (
-                    <div className="flex items-center space-x-3">
-                      <MapPin className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium">{user.address}</p>
-                        <p className="text-sm text-gray-600">Address</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {user.date_of_birth && (
-                    <div className="flex items-center space-x-3">
-                      <Calendar className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium">{new Date(user.date_of_birth).toLocaleDateString()}</p>
-                        <p className="text-sm text-gray-600">Date of Birth</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center space-x-3">
-                    <Calendar className="h-5 w-5 text-gray-400" />
-                    <div>
-                      <p className="font-medium">{new Date(user.created_at).toLocaleDateString()}</p>
-                      <p className="text-sm text-gray-600">Member Since</p>
-                    </div>
-                  </div>
+                <div className="flex items-center space-x-2">
+                  <Package className="h-4 w-4 text-gray-400" />
+                  <span className="font-medium">{user?.name}</span>
                 </div>
-
-                <Separator />
-
-                <div className="flex space-x-4">
-                  <Button className="bg-green-600 hover:bg-green-700">Edit Profile</Button>
-                  <Button variant="outline">Change Password</Button>
+                <div className="flex items-center space-x-2">
+                  <Mail className="h-4 w-4 text-gray-400" />
+                  <span>{user?.email}</span>
+                </div>
+                {user?.phone && (
+                  <div className="flex items-center space-x-2">
+                    <Phone className="h-4 w-4 text-gray-400" />
+                    <span>{user.phone}</span>
+                  </div>
+                )}
+                {user?.address && (
+                  <div className="flex items-center space-x-2">
+                    <MapPin className="h-4 w-4 text-gray-400" />
+                    <span>
+                      {user.address}, {user.city}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-4 w-4 text-gray-400" />
+                  <span>Member since {new Date(user?.createdAt || "").toLocaleDateString()}</span>
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* Orders Tab */}
-          <TabsContent value="orders">
+            {/* Loyalty Card */}
+            {loyalty && (
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Award className="mr-2 h-5 w-5" />
+                    Loyalty Program
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span>Membership Level:</span>
+                    <Badge className={getMembershipColor(loyalty.membership_level)}>{loyalty.membership_level}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Points Balance:</span>
+                    <span className="font-bold text-green-600">{loyalty.points_balance}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Total Orders:</span>
+                    <span>{loyalty.total_orders}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Total Spent:</span>
+                    <span>Rs. {loyalty.total_spent?.toLocaleString()}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Orders Section */}
+          <div className="lg:col-span-2">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <ShoppingBag className="h-5 w-5" />
-                  <span>Order History</span>
+                <CardTitle className="flex items-center">
+                  <Package className="mr-2 h-5 w-5" />
+                  Recent Orders
                 </CardTitle>
-                <CardDescription>Track your past and current orders</CardDescription>
+                <CardDescription>Your order history and current status</CardDescription>
               </CardHeader>
               <CardContent>
                 {orders.length === 0 ? (
                   <div className="text-center py-8">
-                    <ShoppingBag className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">No orders found</p>
-                    <Button className="mt-4 bg-green-600 hover:bg-green-700" onClick={() => router.push("/products")}>
-                      Start Shopping
-                    </Button>
+                    <Package className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No orders yet</h3>
+                    <p className="mt-1 text-sm text-gray-500">Start shopping to see your orders here.</p>
+                    <div className="mt-6">
+                      <Button onClick={() => router.push("/products")}>Browse Products</Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     {orders.map((order) => (
-                      <Card key={order.id} className="border">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <p className="font-medium">Order #{order.order_number}</p>
-                              <p className="text-sm text-gray-600">{new Date(order.created_at).toLocaleDateString()}</p>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Badge className={getStatusColor(order.status)}>
-                                {getStatusIcon(order.status)}
-                                <span className="ml-1 capitalize">{order.status}</span>
-                              </Badge>
-                            </div>
+                      <div key={order.id} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h4 className="font-medium">Order #{order.order_number}</h4>
+                            <p className="text-sm text-gray-500">{new Date(order.created_at).toLocaleDateString()}</p>
                           </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <p className="text-gray-600">Items</p>
-                              <p className="font-medium">{order.item_count} items</p>
-                            </div>
-                            <div>
-                              <p className="text-gray-600">Total Amount</p>
-                              <p className="font-medium">Rs. {order.final_amount}</p>
-                            </div>
-                            <div>
-                              <Button variant="outline" size="sm" onClick={() => router.push(`/orders/${order.id}`)}>
-                                View Details
-                              </Button>
-                            </div>
+                          <div className="text-right">
+                            <Badge className={getStatusColor(order.status)}>
+                              {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                            </Badge>
+                            <p className="text-sm font-medium mt-1">Rs. {order.final_amount?.toLocaleString()}</p>
                           </div>
+                        </div>
 
-                          {order.items && order.items.length > 0 && (
-                            <div className="mt-3 pt-3 border-t">
-                              <p className="text-sm font-medium mb-2">Items:</p>
-                              <div className="space-y-1">
-                                {order.items.slice(0, 3).map((item, index) => (
-                                  <p key={index} className="text-sm text-gray-600">
-                                    {item.product_name} × {item.quantity} = Rs. {item.total_price}
-                                  </p>
-                                ))}
-                                {order.items.length > 3 && (
-                                  <p className="text-sm text-gray-500">+{order.items.length - 3} more items</p>
-                                )}
-                              </div>
+                        <Separator className="my-3" />
+
+                        <div className="space-y-2">
+                          {order.items?.map((item, index) => (
+                            <div key={index} className="flex justify-between text-sm">
+                              <span>
+                                {item.product_name} x {item.quantity}
+                              </span>
+                              <span>Rs. {item.total_price?.toLocaleString()}</span>
                             </div>
-                          )}
-                        </CardContent>
-                      </Card>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
-
-          {/* Loyalty Tab */}
-          <TabsContent value="loyalty">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Gift className="h-5 w-5" />
-                    <span>Loyalty Points</span>
-                  </CardTitle>
-                  <CardDescription>Earn points with every purchase</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-center">
-                    <p className="text-3xl font-bold text-green-600">{loyalty?.points_balance || 0}</p>
-                    <p className="text-gray-600">Available Points</p>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Points Earned</span>
-                      <span className="font-medium">{loyalty?.points_earned || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Points Used</span>
-                      <span className="font-medium">{loyalty?.points_used || 0}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Star className="h-5 w-5" />
-                    <span>Membership Status</span>
-                  </CardTitle>
-                  <CardDescription>Your current membership level</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-center">
-                    <Badge className={`text-lg px-4 py-2 ${getMembershipColor(loyalty?.membership_level || "Bronze")}`}>
-                      {loyalty?.membership_level || "Bronze"} Member
-                    </Badge>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Orders</span>
-                      <span className="font-medium">{loyalty?.total_orders || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Spent</span>
-                      <span className="font-medium">Rs. {loyalty?.total_spent?.toLocaleString() || 0}</span>
-                    </div>
-                  </div>
-
-                  <div className="text-center">
-                    <Button variant="outline" size="sm">
-                      View Benefits
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </main>
-      <Footer />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

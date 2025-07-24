@@ -1,43 +1,49 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createUser } from "@/lib/auth"
+import { registerUser, setAuthCookie } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    const { name, email, phone, password, address, city } = body
 
-    // Validate required fields
-    if (!body.name || !body.email || !body.password) {
-      return NextResponse.json({ error: "Name, email, and password are required" }, { status: 400 })
+    // Validation
+    if (!name || !email || !password) {
+      return NextResponse.json({ success: false, message: "Name, email, and password are required" }, { status: 400 })
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(body.email)) {
-      return NextResponse.json({ error: "Invalid email format" }, { status: 400 })
+    if (password.length < 6) {
+      return NextResponse.json(
+        { success: false, message: "Password must be at least 6 characters long" },
+        { status: 400 },
+      )
     }
 
-    // Validate password strength
-    if (body.password.length < 6) {
-      return NextResponse.json({ error: "Password must be at least 6 characters long" }, { status: 400 })
-    }
-
-    const result = await createUser({
-      name: body.name,
-      email: body.email.toLowerCase(),
-      password: body.password,
-      phone: body.phone,
-      address: body.address,
-      city: body.city,
-      dateOfBirth: body.dateOfBirth,
+    // Register user
+    const result = await registerUser({
+      name,
+      email,
+      phone,
+      password,
+      address,
+      city,
     })
 
-    if (result.success) {
-      return NextResponse.json({ message: "User created successfully", user: result.user }, { status: 201 })
+    if (!result.success) {
+      return NextResponse.json({ success: false, message: result.message }, { status: 400 })
     }
 
-    return NextResponse.json({ error: result.error }, { status: 400 })
+    // Set auth cookie
+    if (result.token) {
+      await setAuthCookie(result.token)
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Account created successfully",
+      user: result.user,
+    })
   } catch (error) {
     console.error("Signup API error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ success: false, message: "Internal server error" }, { status: 500 })
   }
 }

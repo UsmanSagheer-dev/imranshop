@@ -34,8 +34,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const checkAuth = async () => {
     try {
       const response = await fetch("/api/auth/me")
-      if (response.ok) {
-        const data = await response.json()
+      const data = await response.json()
+
+      if (data.success) {
         setUser(data.user)
       }
     } catch (error) {
@@ -55,8 +56,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ email, password }),
       })
 
-      if (response.ok) {
-        const data = await response.json()
+      const data = await response.json()
+
+      if (data.success) {
         setUser(data.user)
         return true
       }

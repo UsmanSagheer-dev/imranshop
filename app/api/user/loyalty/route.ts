@@ -1,29 +1,37 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { validateUserSession, getUserLoyalty } from "@/lib/auth"
+import { NextResponse } from "next/server"
+import { getCurrentUser } from "@/lib/auth"
+import { executeQuery } from "@/lib/database"
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const sessionToken = request.cookies.get("session_token")?.value
+    const user = await getCurrentUser()
 
-    if (!sessionToken) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+    if (!user) {
+      return NextResponse.json({ success: false, message: "Not authenticated" }, { status: 401 })
     }
 
-    const sessionResult = await validateUserSession(sessionToken)
-
-    if (!sessionResult.success) {
-      return NextResponse.json({ error: "Invalid session" }, { status: 401 })
-    }
-
-    const loyaltyResult = await getUserLoyalty(sessionResult.user.user_id)
+    // Get user loyalty data
+    const loyaltyResult = await executeQuery(`SELECT * FROM customer_loyalty WHERE user_id = $1`, [user.id])
 
     if (!loyaltyResult.success) {
-      return NextResponse.json({ error: loyaltyResult.error }, { status: 500 })
+      return NextResponse.json({ success: false, message: "Failed to fetch loyalty data" }, { status: 500 })
     }
 
-    return NextResponse.json({ loyalty: loyaltyResult.loyalty }, { status: 200 })
+    const loyalty = loyaltyResult.data[0] || {
+      points_earned: 0,
+      points_used: 0,
+      points_balance: 0,
+      total_orders: 0,
+      total_spent: 0,
+      membership_level: "Bronze",
+    }
+
+    return NextResponse.json({
+      success: true,
+      loyalty,
+    })
   } catch (error) {
     console.error("Get user loyalty API error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ success: false, message: "Internal server error" }, { status: 500 })
   }
 }

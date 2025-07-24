@@ -1,23 +1,20 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { validateUserSession } from "@/lib/auth"
+import { NextResponse } from "next/server"
+import { getCurrentUser } from "@/lib/auth"
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const sessionToken = request.cookies.get("session_token")?.value
+    const user = await getCurrentUser()
 
-    if (!sessionToken) {
-      return NextResponse.json({ error: "No session found" }, { status: 401 })
+    if (!user) {
+      return NextResponse.json({ success: false, message: "Not authenticated" }, { status: 401 })
     }
 
-    const result = await validateUserSession(sessionToken)
-
-    if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 401 })
-    }
-
-    return NextResponse.json({ user: result.user }, { status: 200 })
+    return NextResponse.json({
+      success: true,
+      user,
+    })
   } catch (error) {
-    console.error("Get current user API error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Get user API error:", error)
+    return NextResponse.json({ success: false, message: "Internal server error" }, { status: 500 })
   }
 }

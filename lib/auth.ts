@@ -1,5 +1,9 @@
 import bcrypt from "bcryptjs"
+import jwt from "jsonwebtoken"
+import { cookies } from "next/headers"
 import { executeQuery } from "./database"
+
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key"
 
 export interface User {
   id: string
@@ -8,25 +12,16 @@ export interface User {
   phone?: string
   address?: string
   city?: string
-  dateOfBirth?: string
   isActive: boolean
   emailVerified: boolean
   createdAt: string
 }
 
-export interface CreateUserData {
-  name: string
-  email: string
-  password: string
-  phone?: string
-  address?: string
-  city?: string
-  dateOfBirth?: string
-}
-
-export interface LoginCredentials {
-  email: string
-  password: string
+export interface AuthResult {
+  success: boolean
+  user?: User
+  token?: string
+  message?: string
 }
 
 // Hash password
@@ -39,266 +34,189 @@ export async function verifyPassword(password: string, hashedPassword: string): 
   return bcrypt.compare(password, hashedPassword)
 }
 
-// Create new user
-export async function createUser(userData: CreateUserData) {
+// Generate JWT token
+export function generateToken(userId: string): string {
+  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "7d" })
+}
+
+// Verify JWT token
+export function verifyToken(token: string): { userId: string } | null {
+  try {
+    return jwt.verify(token, JWT_SECRET) as { userId: string }
+  } catch {
+    return null
+  }
+}
+
+// Register new user
+export async function registerUser(userData: {
+  name: string
+  email: string
+  phone?: string
+  password: string
+  address?: string
+  city?: string
+}): Promise<AuthResult> {
   try {
     // Check if user already exists
     const existingUser = await executeQuery("SELECT id FROM users WHERE email = $1", [userData.email])
 
     if (existingUser.success && existingUser.data.length > 0) {
-      return { success: false, error: "User already exists with this email" }
+      return { success: false, message: "User already exists with this email" }
     }
 
     // Hash password
-    const hashedPassword = await hashPassword(userData.password)
+    const passwordHash = await hashPassword(userData.password)
 
     // Create user
-    const query = `
-      INSERT INTO users (name, email, password_hash, phone, address, city, date_of_birth)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, name, email, phone, address, city, date_of_birth, is_active, email_verified, created_at
-    `
-
-    const params = [
-      userData.name,
-      userData.email,
-      hashedPassword,
-      userData.phone || null,
-      userData.address || null,
-      userData.city || null,
-      userData.dateOfBirth || null,
-    ]
-
-    const result = await executeQuery(query, params)
-
-    if (result.success) {
-      // Create loyalty record for new user
-      await executeQuery("INSERT INTO customer_loyalty (user_id) VALUES ($1)", [result.data[0].id])
-
-      return { success: true, user: result.data[0] }
-    }
-
-    return { success: false, error: "Failed to create user" }
-  } catch (error) {
-    console.error("Create user error:", error)
-    return { success: false, error: "Internal server error" }
-  }
-}
-
-// Authenticate user
-export async function authenticateUser(credentials: LoginCredentials) {
-  try {
-    const query = `
-      SELECT id, name, email, password_hash, phone, address, city, 
-             date_of_birth, is_active, email_verified, created_at
-      FROM users 
-      WHERE email = $1 AND is_active = true
-    `
-
-    const result = await executeQuery(query, [credentials.email])
+    const result = await executeQuery(
+      `INSERT INTO users (name, email, phone, password_hash, address, city)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, name, email, phone, address, city, is_active, email_verified, created_at`,
+      [
+        userData.name,
+        userData.email,
+        userData.phone || null,
+        passwordHash,
+        userData.address || null,
+        userData.city || null,
+      ],
+    )
 
     if (!result.success || result.data.length === 0) {
-      return { success: false, error: "Invalid email or password" }
+      return { success: false, message: "Failed to create user" }
     }
 
     const user = result.data[0]
+    const token = generateToken(user.id)
 
-    // Verify password
-    const isValidPassword = await verifyPassword(credentials.password, user.password_hash)
+    // Create loyalty record
+    await executeQuery(
+      `INSERT INTO customer_loyalty (user_id, points_balance, membership_level)
+       VALUES ($1, 0, 'Bronze')`,
+      [user.id],
+    )
+
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        address: user.address,
+        city: user.city,
+        isActive: user.is_active,
+        emailVerified: user.email_verified,
+        createdAt: user.created_at,
+      },
+      token,
+    }
+  } catch (error) {
+    console.error("Registration error:", error)
+    return { success: false, message: "Registration failed" }
+  }
+}
+
+// Login user
+export async function loginUser(email: string, password: string): Promise<AuthResult> {
+  try {
+    const result = await executeQuery(
+      `SELECT id, name, email, phone, password_hash, address, city, is_active, email_verified, created_at
+       FROM users WHERE email = $1 AND is_active = true`,
+      [email],
+    )
+
+    if (!result.success || result.data.length === 0) {
+      return { success: false, message: "Invalid email or password" }
+    }
+
+    const user = result.data[0]
+    const isValidPassword = await verifyPassword(password, user.password_hash)
 
     if (!isValidPassword) {
-      return { success: false, error: "Invalid email or password" }
+      return { success: false, message: "Invalid email or password" }
     }
 
-    // Remove password hash from response
-    const { password_hash, ...userWithoutPassword } = user
+    const token = generateToken(user.id)
 
-    return { success: true, user: userWithoutPassword }
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        address: user.address,
+        city: user.city,
+        isActive: user.is_active,
+        emailVerified: user.email_verified,
+        createdAt: user.created_at,
+      },
+      token,
+    }
   } catch (error) {
-    console.error("Authenticate user error:", error)
-    return { success: false, error: "Internal server error" }
+    console.error("Login error:", error)
+    return { success: false, message: "Login failed" }
   }
 }
 
-// Get user by ID
-export async function getUserById(id: string) {
+// Get current user from token
+export async function getCurrentUser(): Promise<User | null> {
   try {
-    const query = `
-      SELECT id, name, email, phone, address, city, date_of_birth, 
-             is_active, email_verified, created_at
-      FROM users 
-      WHERE id = $1 AND is_active = true
-    `
+    const cookieStore = await cookies()
+    const token = cookieStore.get("auth-token")?.value
 
-    const result = await executeQuery(query, [id])
-
-    if (result.success && result.data.length > 0) {
-      return { success: true, user: result.data[0] }
+    if (!token) {
+      return null
     }
 
-    return { success: false, error: "User not found" }
+    const decoded = verifyToken(token)
+    if (!decoded) {
+      return null
+    }
+
+    const result = await executeQuery(
+      `SELECT id, name, email, phone, address, city, is_active, email_verified, created_at
+       FROM users WHERE id = $1 AND is_active = true`,
+      [decoded.userId],
+    )
+
+    if (!result.success || result.data.length === 0) {
+      return null
+    }
+
+    const user = result.data[0]
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      address: user.address,
+      city: user.city,
+      isActive: user.is_active,
+      emailVerified: user.email_verified,
+      createdAt: user.created_at,
+    }
   } catch (error) {
-    console.error("Get user by ID error:", error)
-    return { success: false, error: "Internal server error" }
+    console.error("Get current user error:", error)
+    return null
   }
 }
 
-// Update user profile
-export async function updateUserProfile(id: string, updates: Partial<CreateUserData>) {
-  try {
-    const setClause = Object.keys(updates)
-      .filter((key) => key !== "password") // Handle password separately
-      .map((key, index) => {
-        const dbKey = key === "dateOfBirth" ? "date_of_birth" : key.replace(/([A-Z])/g, "_$1").toLowerCase()
-        return `${dbKey} = $${index + 2}`
-      })
-      .join(", ")
-
-    if (!setClause) {
-      return { success: false, error: "No valid fields to update" }
-    }
-
-    const query = `
-      UPDATE users 
-      SET ${setClause}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING id, name, email, phone, address, city, date_of_birth, is_active, email_verified, created_at
-    `
-
-    const params = [id, ...Object.values(updates).filter((_, index) => Object.keys(updates)[index] !== "password")]
-
-    const result = await executeQuery(query, params)
-
-    if (result.success) {
-      return { success: true, user: result.data[0] }
-    }
-
-    return { success: false, error: "Failed to update user" }
-  } catch (error) {
-    console.error("Update user profile error:", error)
-    return { success: false, error: "Internal server error" }
-  }
+// Set auth cookie
+export async function setAuthCookie(token: string) {
+  const cookieStore = await cookies()
+  cookieStore.set("auth-token", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+  })
 }
 
-// Create user session
-export async function createUserSession(userId: string) {
-  try {
-    const sessionToken = generateSessionToken()
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
-
-    const query = `
-      INSERT INTO user_sessions (user_id, session_token, expires_at)
-      VALUES ($1, $2, $3)
-      RETURNING session_token, expires_at
-    `
-
-    const result = await executeQuery(query, [userId, sessionToken, expiresAt])
-
-    if (result.success) {
-      return { success: true, session: result.data[0] }
-    }
-
-    return { success: false, error: "Failed to create session" }
-  } catch (error) {
-    console.error("Create session error:", error)
-    return { success: false, error: "Internal server error" }
-  }
-}
-
-// Validate user session
-export async function validateUserSession(sessionToken: string) {
-  try {
-    const query = `
-      SELECT s.user_id, s.expires_at, u.id, u.name, u.email, u.phone, u.address, u.city
-      FROM user_sessions s
-      JOIN users u ON s.user_id = u.id
-      WHERE s.session_token = $1 AND s.expires_at > CURRENT_TIMESTAMP AND u.is_active = true
-    `
-
-    const result = await executeQuery(query, [sessionToken])
-
-    if (result.success && result.data.length > 0) {
-      return { success: true, user: result.data[0] }
-    }
-
-    return { success: false, error: "Invalid or expired session" }
-  } catch (error) {
-    console.error("Validate session error:", error)
-    return { success: false, error: "Internal server error" }
-  }
-}
-
-// Delete user session (logout)
-export async function deleteUserSession(sessionToken: string) {
-  try {
-    const query = "DELETE FROM user_sessions WHERE session_token = $1"
-    const result = await executeQuery(query, [sessionToken])
-    return { success: result.success }
-  } catch (error) {
-    console.error("Delete session error:", error)
-    return { success: false, error: "Internal server error" }
-  }
-}
-
-// Generate session token
-function generateSessionToken(): string {
-  return Math.random().toString(36).substring(2) + Date.now().toString(36)
-}
-
-// Get user's order history
-export async function getUserOrderHistory(userId: string, limit = 10, offset = 0) {
-  try {
-    const query = `
-      SELECT o.*, 
-             COUNT(oi.id) as item_count,
-             ARRAY_AGG(
-               JSON_BUILD_OBJECT(
-                 'product_name', oi.product_name,
-                 'quantity', oi.quantity,
-                 'unit_price', oi.unit_price,
-                 'total_price', oi.total_price
-               )
-             ) as items
-      FROM orders o
-      LEFT JOIN order_items oi ON o.id = oi.order_id
-      WHERE o.user_id = $1
-      GROUP BY o.id
-      ORDER BY o.created_at DESC
-      LIMIT $2 OFFSET $3
-    `
-
-    const result = await executeQuery(query, [userId, limit, offset])
-
-    if (result.success) {
-      return { success: true, orders: result.data }
-    }
-
-    return { success: false, error: "Failed to fetch order history" }
-  } catch (error) {
-    console.error("Get user order history error:", error)
-    return { success: false, error: "Internal server error" }
-  }
-}
-
-// Get user's loyalty points
-export async function getUserLoyalty(userId: string) {
-  try {
-    const query = `
-      SELECT points_earned, points_used, points_balance, total_orders, 
-             total_spent, membership_level, created_at
-      FROM customer_loyalty
-      WHERE user_id = $1
-    `
-
-    const result = await executeQuery(query, [userId])
-
-    if (result.success && result.data.length > 0) {
-      return { success: true, loyalty: result.data[0] }
-    }
-
-    return { success: false, error: "Loyalty data not found" }
-  } catch (error) {
-    console.error("Get user loyalty error:", error)
-    return { success: false, error: "Internal server error" }
-  }
+// Clear auth cookie
+export async function clearAuthCookie() {
+  const cookieStore = await cookies()
+  cookieStore.delete("auth-token")
 }

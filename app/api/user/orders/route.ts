@@ -1,33 +1,47 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { validateUserSession, getUserOrderHistory } from "@/lib/auth"
+import { NextResponse } from "next/server"
+import { getCurrentUser } from "@/lib/auth"
+import { executeQuery } from "@/lib/database"
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const sessionToken = request.cookies.get("session_token")?.value
+    const user = await getCurrentUser()
 
-    if (!sessionToken) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+    if (!user) {
+      return NextResponse.json({ success: false, message: "Not authenticated" }, { status: 401 })
     }
 
-    const sessionResult = await validateUserSession(sessionToken)
-
-    if (!sessionResult.success) {
-      return NextResponse.json({ error: "Invalid session" }, { status: 401 })
-    }
-
-    const { searchParams } = new URL(request.url)
-    const limit = Number.parseInt(searchParams.get("limit") || "10")
-    const offset = Number.parseInt(searchParams.get("offset") || "0")
-
-    const ordersResult = await getUserOrderHistory(sessionResult.user.user_id, limit, offset)
+    // Get user orders with items
+    const ordersResult = await executeQuery(
+      `SELECT 
+        o.*,
+        json_agg(
+          json_build_object(
+            'id', oi.id,
+            'product_name', oi.product_name,
+            'product_unit', oi.product_unit,
+            'quantity', oi.quantity,
+            'unit_price', oi.unit_price,
+            'total_price', oi.total_price
+          )
+        ) as items
+       FROM orders o
+       LEFT JOIN order_items oi ON o.id = oi.order_id
+       WHERE o.user_id = $1
+       GROUP BY o.id
+       ORDER BY o.created_at DESC`,
+      [user.id],
+    )
 
     if (!ordersResult.success) {
-      return NextResponse.json({ error: ordersResult.error }, { status: 500 })
+      return NextResponse.json({ success: false, message: "Failed to fetch orders" }, { status: 500 })
     }
 
-    return NextResponse.json({ orders: ordersResult.orders }, { status: 200 })
+    return NextResponse.json({
+      success: true,
+      orders: ordersResult.data,
+    })
   } catch (error) {
     console.error("Get user orders API error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ success: false, message: "Internal server error" }, { status: 500 })
   }
 }
