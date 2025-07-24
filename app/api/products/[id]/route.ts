@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getProductById, updateProduct, deleteProduct, getCategories } from "@/lib/database"
+import { getProductById, updateProduct, deleteProduct } from "@/lib/database"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -9,7 +9,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: result.error }, { status: 500 })
     }
 
-    if (result.data.length === 0) {
+    if (!result.data || result.data.length === 0) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
@@ -25,28 +25,17 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const body = await request.json()
 
     const updates: any = {}
-
-    if (body.name) updates.name = body.name
+    if (body.name !== undefined) updates.name = body.name
     if (body.description !== undefined) updates.description = body.description
-    if (body.unit) updates.unit = body.unit
+    if (body.categoryId !== undefined) updates.categoryId = body.categoryId
+    if (body.unit !== undefined) updates.unit = body.unit
     if (body.price !== undefined) updates.price = Number.parseFloat(body.price)
     if (body.costPrice !== undefined) updates.costPrice = Number.parseFloat(body.costPrice)
-    if (body.stock !== undefined) updates.stockQuantity = Number.parseInt(body.stock)
+    if (body.stockQuantity !== undefined) updates.stockQuantity = Number.parseInt(body.stockQuantity)
     if (body.lowStockAlert !== undefined) updates.lowStockAlert = Number.parseInt(body.lowStockAlert)
-    if (body.image !== undefined) updates.imageUrl = body.image
+    if (body.imageUrl !== undefined) updates.imageUrl = body.imageUrl
     if (body.isActive !== undefined) updates.isActive = body.isActive
     if (body.isFeatured !== undefined) updates.isFeatured = body.isFeatured
-
-    if (body.category) {
-      // Get category ID by name
-      const categoriesResult = await getCategories(true)
-      if (categoriesResult.success) {
-        const category = categoriesResult.data.find((c: any) => c.name === body.category)
-        if (category) {
-          updates.categoryId = category.id
-        }
-      }
-    }
 
     const result = await updateProduct(params.id, updates)
 
@@ -54,7 +43,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: result.error }, { status: 500 })
     }
 
-    if (result.data.length === 0) {
+    if (!result.data || result.data.length === 0) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 

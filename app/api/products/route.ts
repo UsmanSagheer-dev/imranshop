@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getProducts, createProduct, getCategories } from "@/lib/database"
+import { getProducts, createProduct } from "@/lib/database"
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,31 +33,23 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    // Get category ID by name
-    const categoriesResult = await getCategories(true)
-    if (!categoriesResult.success) {
-      return NextResponse.json({ error: "Failed to fetch categories" }, { status: 500 })
-    }
-
-    const category = categoriesResult.data.find((c: any) => c.name === body.category)
-    if (!category) {
-      return NextResponse.json({ error: "Invalid category" }, { status: 400 })
-    }
+    // Get admin ID (in a real app, this would come from authentication)
+    const adminId = "00000000-0000-0000-0000-000000000001" // Default admin ID
 
     const productData = {
       name: body.name,
       description: body.description,
-      categoryId: category.id,
+      categoryId: body.categoryId,
       unit: body.unit,
       price: Number.parseFloat(body.price),
       costPrice: body.costPrice ? Number.parseFloat(body.costPrice) : undefined,
-      stockQuantity: Number.parseInt(body.stock),
+      stockQuantity: Number.parseInt(body.stockQuantity),
       lowStockAlert: Number.parseInt(body.lowStockAlert),
-      imageUrl: body.image,
+      imageUrl: body.imageUrl,
       sku: body.sku,
       isActive: body.isActive ?? true,
       isFeatured: body.isFeatured ?? false,
-      createdBy: "admin-id", // In real app, get from auth
+      createdBy: adminId,
     }
 
     const result = await createProduct(productData)

@@ -8,12 +8,27 @@ import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Search, ShoppingCart, MessageCircle, Menu } from "lucide-react"
+import { Search, ShoppingCart, MessageCircle, Menu, LogOut } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
+interface UserInterface {
+  id: string
+  name: string
+  email: string
+}
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false)
   const [cartCount, setCartCount] = useState(0)
   const [searchTerm, setSearchTerm] = useState("")
+  const [user, setUser] = useState<UserInterface | null>(null)
+  const [loading, setLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -44,11 +59,41 @@ export default function Header() {
     }
   }, [])
 
+  useEffect(() => {
+    // Check if user is logged in
+    const checkAuth = async () => {
+      try {
+        const response = await fetch("/api/auth/me")
+        if (response.ok) {
+          const data = await response.json()
+          setUser(data.user)
+        }
+      } catch (error) {
+        console.error("Auth check error:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    checkAuth()
+  }, [pathname])
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     if (searchTerm.trim()) {
       router.push(`/products?search=${encodeURIComponent(searchTerm.trim())}`)
       setSearchTerm("")
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+      setUser(null)
+      router.push("/")
+      router.refresh()
+    } catch (error) {
+      console.error("Logout error:", error)
     }
   }
 
@@ -130,6 +175,55 @@ export default function Header() {
               </Link>
             </Button>
 
+            {/* User Menu */}
+            {!loading && (
+              <>
+                {user ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="flex items-center space-x-2 bg-transparent">
+                        <Menu className="h-4 w-4" />
+                        <span className="hidden sm:inline">{user.name.split(" ")[0]}</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <div className="px-2 py-1.5">
+                        <p className="text-sm font-medium">{user.name}</p>
+                        <p className="text-xs text-gray-500">{user.email}</p>
+                      </div>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link href="/dashboard" className="cursor-pointer">
+                          <Menu className="h-4 w-4 mr-2" />
+                          Dashboard
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/dashboard?tab=orders" className="cursor-pointer">
+                          <ShoppingCart className="h-4 w-4 mr-2" />
+                          My Orders
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Logout
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/auth/login">Login</Link>
+                    </Button>
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700" asChild>
+                      <Link href="/auth/signup">Sign Up</Link>
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+
             {/* Mobile Menu */}
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
               <SheetTrigger asChild>
@@ -149,6 +243,7 @@ export default function Header() {
                       className="pl-10 pr-4 py-2 w-full"
                     />
                   </form>
+
                   {navigation.map((item) => (
                     <Link
                       key={item.name}
@@ -161,6 +256,48 @@ export default function Header() {
                       {item.name}
                     </Link>
                   ))}
+
+                  {user ? (
+                    <div className="space-y-2 pt-4 border-t">
+                      <p className="font-medium">Welcome, {user.name}!</p>
+                      <Button className="w-full justify-start" variant="ghost" asChild onClick={() => setIsOpen(false)}>
+                        <Link href="/dashboard">
+                          <Menu className="h-4 w-4 mr-2" />
+                          Dashboard
+                        </Link>
+                      </Button>
+                      <Button
+                        className="w-full justify-start text-red-600"
+                        variant="ghost"
+                        onClick={() => {
+                          handleLogout()
+                          setIsOpen(false)
+                        }}
+                      >
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Logout
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 pt-4 border-t">
+                      <Button
+                        className="w-full bg-transparent"
+                        variant="outline"
+                        asChild
+                        onClick={() => setIsOpen(false)}
+                      >
+                        <Link href="/auth/login">Login</Link>
+                      </Button>
+                      <Button
+                        className="w-full bg-green-600 hover:bg-green-700"
+                        asChild
+                        onClick={() => setIsOpen(false)}
+                      >
+                        <Link href="/auth/signup">Sign Up</Link>
+                      </Button>
+                    </div>
+                  )}
+
                   <Button className="w-full mt-4 bg-green-600 hover:bg-green-700" asChild>
                     <a href="https://wa.me/923001234567" target="_blank" rel="noopener noreferrer">
                       <MessageCircle className="h-4 w-4 mr-2" />

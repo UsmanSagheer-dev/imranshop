@@ -4,19 +4,25 @@ import { getConversations, getMessages, createMessage } from "@/lib/database"
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const conversationId = searchParams.get("conversation_id")
+    const conversationId = searchParams.get("conversationId")
 
     if (conversationId) {
+      // Get messages for a specific conversation
       const result = await getMessages(conversationId)
+
       if (!result.success) {
         return NextResponse.json({ error: result.error }, { status: 500 })
       }
+
       return NextResponse.json({ messages: result.data })
     } else {
+      // Get all conversations
       const result = await getConversations()
+
       if (!result.success) {
         return NextResponse.json({ error: result.error }, { status: 500 })
       }
+
       return NextResponse.json({ conversations: result.data })
     }
   } catch (error) {

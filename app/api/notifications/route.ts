@@ -30,6 +30,10 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const { id } = body
 
+    if (!id) {
+      return NextResponse.json({ error: "Notification ID is required" }, { status: 400 })
+    }
+
     const result = await markNotificationAsRead(id)
 
     if (!result.success) {
@@ -38,7 +42,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ notification: result.data[0] })
   } catch (error) {
-    console.error("Mark notification read error:", error)
+    console.error("Update notification error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

@@ -5,7 +5,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get("status") || undefined
-    const customerId = searchParams.get("customer_id") || undefined
+    const customerId = searchParams.get("customerId") || undefined
     const limit = searchParams.get("limit") ? Number.parseInt(searchParams.get("limit")!) : undefined
     const offset = searchParams.get("offset") ? Number.parseInt(searchParams.get("offset")!) : undefined
 
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     // Generate order number
-    const orderNumber = `ORD-${Date.now()}`
+    const orderNumber = `AGS-${Date.now()}`
 
     const orderData = {
       orderNumber,
@@ -64,17 +64,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: 500 })
     }
 
-    // Create notification for admin
+    // Create notification for new order
     await createNotification({
       type: "order",
       title: "New Order Received",
-      message: `Order ${orderNumber} has been placed by ${body.customerName}`,
-      data: {
-        orderId: result.data.id,
-        orderNumber,
-        customer: body.customerName,
-        amount: body.finalAmount,
-      },
+      message: `New order ${orderNumber} from ${body.customerName} for Rs. ${body.finalAmount}`,
+      data: { orderId: result.data.id, orderNumber },
       priority: "high",
     })
 
